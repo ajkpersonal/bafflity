@@ -19,3 +19,12 @@ body {
   background: var(--background);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+@keyframes flash {
+  0% { background-color: hsl(var(--p)); }
+  100% { background-color: hsl(var(--b2)); }
+}
+
+.flash {
+  animation: flash 1s ease-out;
+}

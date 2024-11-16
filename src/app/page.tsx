@@ -1,101 +1,109 @@
-import Image from "next/image";
+// app/page.tsx
+'use client';
 
-export default function Home() {
+import React, { useState} from 'react';
+import Sidebar from './components/Sidebar';
+import { search } from './api/search/actions';
+import { SearchResult } from './api/search/actions';
+import { getOpenAIResponse } from './api/openai/actions';
+import ReactMarkdown, { Components } from 'react-markdown';
+import { SearchResults } from './components/SearchResults';
+import { SearchForm } from './components/SearchForm';
+import { useCitations } from './hooks/useCitations';
+
+const Home = () => {
+  const [query, setQuery] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [currentSearch, setCurrentSearch] = useState<{
+    query: string;
+    response: string;
+    numberedResults: { id: number; title: string; url: string }[];
+  } | null>(null);
+  
+  const { activeReference, resultRefs, handleCitationClick, resetActiveReference } = useCitations();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setSearchResults([]);
+    setCurrentSearch(null);
+    
+    const results = await search(query);
+    setSearchResults(results);
+    const openaiResponse = await getOpenAIResponse(results, query);
+    setCurrentSearch({
+      query: query,
+      response: openaiResponse.message.content || '',
+      numberedResults: openaiResponse.numberedResults
+    });
+    setQuery('');
+    setLoading(false);
+  };
+
+  const citationTags: Partial<Components> = {
+    p: ({ children }) => <p className="mb-4">{children}</p>,
+    a: ({ children, href }) => {
+      if (href?.startsWith('#citation-')) {
+        const citationNumber = href.replace('#citation-', '');
+        return (
+          <button
+            onClick={() => handleCitationClick(parseInt(citationNumber))}
+            className="inline-flex items-center justify-center w-5 h-5 text-xs rounded-full bg-primary text-primary-content mx-1 hover:bg-primary-focus cursor-pointer"
+          >
+            {citationNumber}
+          </button>
+        );
+      }
+      return <a href={href} className="text-primary hover:text-primary-focus">{children}</a>;
+    }
+  };
+
+  const handleContainerClick = (e: React.MouseEvent) => {
+    if (e.target === e.currentTarget) {
+      resetActiveReference();
+    }
+  };
+
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+    <div className="flex">
+      <Sidebar />
+      <div 
+        className="flex-1 flex flex-col h-screen bg-base-200"
+        onClick={handleContainerClick}
+      >
+        <div className="flex-1 overflow-auto p-4 border rounded-lg bg-white">
+          {loading ? (
+            <div className="rounded-lg p-8 flex items-center justify-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+            </div>
+          ) : currentSearch && (
+            <>
+              <h1 className="text-2xl font-bold mb-6">{currentSearch.query.charAt(0).toUpperCase() + currentSearch.query.slice(1)}</h1>
+              
+              {searchResults.length > 0 && (
+                  <SearchResults
+                    results={searchResults}
+                    resultRefs={resultRefs}
+                    activeReference={activeReference}
+                  />
+              )}
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+              <div className="prose prose-slate dark:prose-invert max-w-none">
+                <ReactMarkdown components={citationTags}>{currentSearch.response}</ReactMarkdown>
+              </div>
+            </>
+          )}
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+        <SearchForm
+          query={query}
+          loading={loading}
+          onQueryChange={setQuery}
+          onSubmit={handleSubmit}
+        />
+      </div>
     </div>
   );
-}
+};
+
+export default Home;
